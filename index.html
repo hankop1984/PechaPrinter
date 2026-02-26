@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pecha PDF Printer — Longchen Nyingtik Project</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@400;500;600&display=swap');
+
+  :root {
+    --saffron: #C4922A;
+    --saffron-light: #E8C36A;
+    --saffron-pale: #FFF8E7;
+    --maroon: #6B1D2A;
+    --maroon-deep: #4A1320;
+    --cream: #FEFBF3;
+    --ink: #2C1810;
+    --ink-light: #5C4A3E;
+    --stone: #B8A898;
+    --stone-light: #E8DDD0;
+    --white: #FFFFFF;
+    --success: #3A7D44;
+    --error: #A03030;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Decorative top border */
+  body::before {
+    content: '';
+    display: block;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--maroon), var(--saffron), var(--maroon));
+  }
+
+  header {
+    text-align: center;
+    padding: 2.5rem 1.5rem 1.5rem;
+    max-width: 640px;
+  }
+
+  .ornament {
+    color: var(--saffron);
+    font-size: 1.6rem;
+    letter-spacing: 0.8em;
+    margin-bottom: 0.6rem;
+    user-select: none;
+  }
+
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 2.2rem;
+    color: var(--maroon);
+    letter-spacing: 0.02em;
+    margin-bottom: 0.4rem;
+  }
+
+  .subtitle {
+    font-size: 0.88rem;
+    color: var(--ink-light);
+    font-weight: 400;
+  }
+
+  main {
+    width: 100%;
+    max-width: 580px;
+    padding: 0 1.5rem 3rem;
+  }
+
+  /* Card styling */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--stone-light);
+    border-radius: 12px;
+    padding: 1.8rem;
+    margin-bottom: 1.2rem;
+    box-shadow: 0 1px 3px rgba(44,24,16,0.04);
+  }
+
+  .card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--maroon);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .card-title .step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--saffron);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Drop zone */
+  .drop-zone {
+    border: 2px dashed var(--stone);
+    border-radius: 10px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: var(--saffron-pale);
+    position: relative;
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--saffron);
+    background: #FFF5D6;
+  }
+
+  .drop-zone.has-file {
+    border-style: solid;
+    border-color: var(--success);
+    background: #F0F8F1;
+  }
+
+  .drop-zone-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .drop-zone-text {
+    font-size: 0.9rem;
+    color: var(--ink-light);
+    line-height: 1.5;
+  }
+
+  .drop-zone-text strong {
+    color: var(--saffron);
+    cursor: pointer;
+  }
+
+  .file-info {
+    font-size: 0.85rem;
+    color: var(--success);
+    font-weight: 500;
+  }
+
+  .file-info .filename {
+    font-weight: 600;
+  }
+
+  .file-info .details {
+    font-weight: 400;
+    color: var(--ink-light);
+    margin-top: 0.2rem;
+  }
+
+  .file-reset {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--error);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  input[type="file"] { display: none; }
+
+  /* Format selection */
+  .format-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .format-option {
+    position: relative;
+  }
+
+  .format-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .format-option label {
+    display: block;
+    padding: 0.85rem 1rem;
+    border: 1.5px solid var(--stone-light);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+  }
+
+  .format-option label:hover {
+    border-color: var(--saffron-light);
+    background: var(--saffron-pale);
+  }
+
+  .format-option input:checked + label {
+    border-color: var(--saffron);
+    background: var(--saffron-pale);
+    box-shadow: 0 0 0 1px var(--saffron);
+  }
+
+  .format-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--ink);
+    margin-bottom: 0.15rem;
+  }
+
+  .format-desc {
+    font-size: 0.72rem;
+    color: var(--ink-light);
+  }
+
+  /* Info box */
+  .info-box {
+    background: var(--saffron-pale);
+    border-left: 3px solid var(--saffron);
+    border-radius: 0 6px 6px 0;
+    padding: 0.75rem 1rem;
+    font-size: 0.82rem;
+    color: var(--ink-light);
+    margin-top: 1rem;
+    line-height: 1.5;
+  }
+
+  /* Button */
+  .btn-generate {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--maroon), var(--maroon-deep));
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-generate:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(107,29,42,0.3);
+  }
+
+  .btn-generate:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-generate:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* Progress and status */
+  .status-area {
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--stone-light);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 0.6rem;
+    display: none;
+  }
+
+  .progress-bar.active { display: block; }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--saffron), var(--maroon));
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+
+  .status-text {
+    font-size: 0.85rem;
+    color: var(--ink-light);
+  }
+
+  .status-text.error { color: var(--error); }
+  .status-text.success { color: var(--success); font-weight: 500; }
+
+  /* Result area */
+  .result-area {
+    display: none;
+    margin-top: 1.2rem;
+  }
+
+  .result-area.visible { display: block; }
+
+  .result-card {
+    background: #F0F8F1;
+    border: 1px solid #B8DBC0;
+    border-radius: 10px;
+    padding: 1.3rem;
+    text-align: center;
+  }
+
+  .result-card p {
+    font-size: 0.88rem;
+    margin-bottom: 0.8rem;
+    color: var(--ink);
+  }
+
+  .btn-download {
+    display: inline-block;
+    padding: 0.7rem 2rem;
+    border: none;
+    border-radius: 8px;
+    background: var(--success);
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .btn-download:hover {
+    background: #2E6B37;
+    transform: translateY(-1px);
+  }
+
+  .print-string-area {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #B8DBC0;
+  }
+
+  .print-string-toggle {
+    font-size: 0.78rem;
+    color: var(--ink-light);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    user-select: none;
+  }
+
+  .print-string-value {
+    display: none;
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    background: var(--white);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    word-break: break-all;
+    line-height: 1.6;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .print-string-value.visible { display: block; }
+
+  /* Footer */
+  footer {
+    padding: 1.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--stone);
+    border-top: 1px solid var(--stone-light);
+    width: 100%;
+    margin-top: auto;
+  }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    h1 { font-size: 1.7rem; }
+    .format-grid { grid-template-columns: 1fr; }
+    .card { padding: 1.3rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="ornament">࿐ ࿐ ࿐</div>
+  <h1>Pecha PDF Printer</h1>
+  <p class="subtitle">Reorder and impose PDF pages for pecha printing — works on any platform</p>
+</header>
+
+<main>
+
+  <!-- Step 1: Upload -->
+  <div class="card">
+    <div class="card-title"><span class="step">1</span> Upload your PDF</div>
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">📄</div>
+      <div class="drop-zone-text" id="dropText">
+        Drag &amp; drop your PDF here, or <strong>click to browse</strong>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf">
+  </div>
+
+  <!-- Step 2: Format -->
+  <div class="card">
+    <div class="card-title"><span class="step">2</span> Choose format</div>
+    <div class="format-grid">
+      <div class="format-option">
+        <input type="radio" name="format" id="fmtPecha" value="pecha" checked>
+        <label for="fmtPecha">
+          <div class="format-name">A4 Landscape Pechas</div>
+          <div class="format-desc">3 pages per sheet · multiple of 6</div>
+        </label>
+      </div>
+      <div class="format-option">
+        <input type="radio" name="format" id="fmtMiniPecha" value="miniPecha">
+        <label for="fmtMiniPecha">
+          <div class="format-name">Mini Pecha</div>
+          <div class="format-desc">2×3 on A4 landscape · multiple of 12</div>
+        </label>
+      </div>
+      <div class="format-option">
+        <input type="radio" name="format" id="fmtA4Portrait" value="a4portrait">
+        <label for="fmtA4Portrait">
+          <div class="format-name">A4 Portrait Pecha</div>
+          <div class="format-desc">6 pages per sheet · multiple of 6</div>
+        </label>
+      </div>
+      <div class="format-option">
+        <input type="radio" name="format" id="fmtReorderOnly" value="reorderOnly">
+        <label for="fmtReorderOnly">
+          <div class="format-name">Reorder Only</div>
+          <div class="format-desc">Pecha order, no imposition</div>
+        </label>
+      </div>
+    </div>
+    <div class="info-box" id="infoBox">
+      Your PDF pages will be padded to a multiple of 6 (with blank pages if needed), reordered for pecha printing, and imposed 3-up on A4 landscape sheets.
+    </div>
+  </div>
+
+  <!-- Generate -->
+  <button class="btn-generate" id="btnGenerate" disabled>Generate Pecha PDF</button>
+
+  <!-- Status -->
+  <div class="status-area">
+    <div class="progress-bar" id="progressBar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="status-text" id="statusText"></div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-area" id="resultArea">
+    <div class="result-card">
+      <p id="resultInfo"></p>
+      <a class="btn-download" id="btnDownload" href="#" download>⬇ Download PDF</a>
+      <div class="print-string-area">
+        <span class="print-string-toggle" id="psToggle">Show print string</span>
+        <div class="print-string-value" id="psValue"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Pecha PDF Printer · Longchen Nyingtik Project
+</footer>
+
+<script>
+const { PDFDocument, degrees } = PDFLib;
+
+// ─── State ───
+let uploadedPdfBytes = null;
+let uploadedPageCount = 0;
+let uploadedFileName = '';
+
+// ─── DOM refs ───
+const dropZone = document.getElementById('dropZone');
+const dropText = document.getElementById('dropText');
+const fileInput = document.getElementById('fileInput');
+const btnGenerate = document.getElementById('btnGenerate');
+const progressBar = document.getElementById('progressBar');
+const progressFill = document.getElementById('progressFill');
+const statusText = document.getElementById('statusText');
+const resultArea = document.getElementById('resultArea');
+const resultInfo = document.getElementById('resultInfo');
+const btnDownload = document.getElementById('btnDownload');
+const infoBox = document.getElementById('infoBox');
+const psToggle = document.getElementById('psToggle');
+const psValue = document.getElementById('psValue');
+
+// ─── Format info updates ───
+document.querySelectorAll('input[name="format"]').forEach(r => {
+  r.addEventListener('change', updateInfoBox);
+});
+
+function updateInfoBox() {
+  const fmt = document.querySelector('input[name="format"]:checked').value;
+  const msgs = {
+    pecha: 'Your PDF pages will be padded to a multiple of 6 (with blank pages if needed), reordered for pecha printing, and imposed 3-up on A4 landscape sheets.',
+    miniPecha: 'Your PDF pages will be padded to a multiple of 12, reordered, and imposed 2×3 (6-up) on A4 landscape sheets for mini pechas.',
+    a4portrait: 'Your PDF pages will be padded to a multiple of 6, reordered for pecha printing, and imposed 6-up on A4 portrait sheets.',
+    reorderOnly: 'Your PDF pages will be padded to a multiple of 6 and reordered for pecha printing. No imposition — each page remains its original size. Use your printer\'s "multiple pages per sheet" setting for 3-on-1.'
+  };
+  infoBox.textContent = msgs[fmt];
+}
+
+// ─── File handling ───
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFile(fileInput.files[0]); });
+
+async function handleFile(file) {
+  if (file.type !== 'application/pdf') {
+    setStatus('Please select a PDF file.', 'error');
+    return;
+  }
+  try {
+    uploadedPdfBytes = await file.arrayBuffer();
+    const pdf = await PDFDocument.load(uploadedPdfBytes);
+    uploadedPageCount = pdf.getPageCount();
+    uploadedFileName = file.name.replace(/\.pdf$/i, '');
+
+    dropZone.classList.add('has-file');
+    dropText.innerHTML = `
+      <div class="file-info">
+        <div class="filename">✓ ${file.name}</div>
+        <div class="details">${uploadedPageCount} page${uploadedPageCount !== 1 ? 's' : ''} · ${(file.size / 1024).toFixed(0)} KB</div>
+        <span class="file-reset" onclick="resetFile(event)">Choose a different file</span>
+      </div>`;
+    btnGenerate.disabled = false;
+    setStatus('');
+    resultArea.classList.remove('visible');
+  } catch (err) {
+    setStatus('Could not read PDF. The file may be corrupted or encrypted.', 'error');
+  }
+}
+
+function resetFile(e) {
+  e.stopPropagation();
+  uploadedPdfBytes = null;
+  uploadedPageCount = 0;
+  uploadedFileName = '';
+  dropZone.classList.remove('has-file');
+  dropText.innerHTML = 'Drag & drop your PDF here, or <strong>click to browse</strong>';
+  btnGenerate.disabled = true;
+  fileInput.value = '';
+  resultArea.classList.remove('visible');
+}
+
+// ─── Print string algorithms (from FormatStringPrint.exe) ───
+
+function pechaPrintString(inputPages) {
+  let n = inputPages;
+  // Pad to multiple of 6
+  if (n % 6 !== 0 || n < 5) {
+    n = Math.ceil(n / 6) * 6;
+  }
+  const half = Math.floor(n / 3);
+  const order = [];
+  for (let i = 0; i < Math.floor(n / 6); i++) {
+    order.push(i * 2 + 1);
+    order.push(i * 2 + half + 1);
+    order.push(i * 2 + 2 * half + 1);
+    order.push(i * 2 + 2 * half + 2);
+    order.push(i * 2 + half + 2);
+    order.push(i * 2 + 2);
+  }
+  return { paddedCount: n, order };
+}
+
+function miniPechaPrintString(inputPages) {
+  // Mini pecha uses same logic but needs multiple of 12
+  let n = inputPages;
+  if (n % 12 !== 0 || n < 11) {
+    n = Math.ceil(n / 12) * 12;
+  }
+  const half = Math.floor(n / 3);
+  const order = [];
+  for (let i = 0; i < Math.floor(n / 6); i++) {
+    order.push(i * 2 + 1);
+    order.push(i * 2 + half + 1);
+    order.push(i * 2 + 2 * half + 1);
+    order.push(i * 2 + 2 * half + 2);
+    order.push(i * 2 + half + 2);
+    order.push(i * 2 + 2);
+  }
+  return { paddedCount: n, order };
+}
+
+// ─── Main generation ───
+btnGenerate.addEventListener('click', generate);
+
+async function generate() {
+  const fmt = document.querySelector('input[name="format"]:checked').value;
+
+  btnGenerate.disabled = true;
+  progressBar.classList.add('active');
+  resultArea.classList.remove('visible');
+  setProgress(5);
+  setStatus('Loading PDF…');
+
+  try {
+    const srcPdf = await PDFDocument.load(uploadedPdfBytes);
+    const srcCount = srcPdf.getPageCount();
+
+    setProgress(10);
+    setStatus('Calculating page order…');
+
+    // Get print order
+    let result;
+    if (fmt === 'miniPecha') {
+      result = miniPechaPrintString(srcCount);
+    } else {
+      result = pechaPrintString(srcCount);
+    }
+    const { paddedCount, order } = result;
+    const blanksNeeded = paddedCount - srcCount;
+
+    setProgress(20);
+    setStatus(`Padded to ${paddedCount} pages (${blanksNeeded} blank page${blanksNeeded !== 1 ? 's' : ''} added)…`);
+
+    // Create a working PDF with all pages (original + blanks)
+    const workPdf = await PDFDocument.create();
+
+    // Copy all original pages
+    const copiedPages = await workPdf.copyPages(srcPdf, Array.from({length: srcCount}, (_, i) => i));
+    for (const p of copiedPages) {
+      workPdf.addPage(p);
+    }
+
+    // Add blank pages matching the size AND rotation of the first page
+    // IMPORTANT: draw invisible content so the page has a Contents stream
+    // (pdf-lib's embedPage fails on pages with missing Contents)
+    const firstPage = srcPdf.getPage(0);
+    const { width: srcW, height: srcH } = firstPage.getSize();
+    const srcRotation = firstPage.getRotation().angle || 0;
+    for (let i = 0; i < blanksNeeded; i++) {
+      const blankPage = workPdf.addPage([srcW, srcH]);
+      if (srcRotation) {
+        blankPage.setRotation(degrees(srcRotation));
+      }
+      blankPage.drawRectangle({
+        x: 0, y: 0, width: 0, height: 0,
+        opacity: 0, borderOpacity: 0
+      });
+    }
+
+    // Also ensure ALL pages have a Contents stream (some source PDFs have empty pages)
+    for (let i = 0; i < workPdf.getPageCount(); i++) {
+      const pg = workPdf.getPage(i);
+      const ref = pg.node.get(PDFLib.PDFName.of('Contents'));
+      if (!ref) {
+        pg.drawRectangle({
+          x: 0, y: 0, width: 0, height: 0,
+          opacity: 0, borderOpacity: 0
+        });
+      }
+    }
+
+    setProgress(35);
+
+    if (fmt === 'reorderOnly') {
+      // Just reorder, no imposition
+      setStatus('Reordering pages…');
+      const outPdf = await PDFDocument.create();
+      const indices = order.map(p => p - 1); // 0-indexed
+      const reordered = await outPdf.copyPages(workPdf, indices);
+      for (const p of reordered) outPdf.addPage(p);
+
+      setProgress(80);
+      setStatus('Saving…');
+      await finishAndDownload(outPdf, fmt, paddedCount, blanksNeeded, order);
+
+    } else {
+      // Imposition: embed pages onto larger sheets
+      setStatus('Imposing pages on sheets…');
+      
+      // First, save and reload workPdf so we can embed from it
+      setStatus('Preparing pages for imposition…');
+      const workBytes = await workPdf.save();
+      const workPdfForEmbed = await PDFDocument.load(workBytes);
+
+      const outPdf = await PDFDocument.create();
+
+      let pagesPerSheet, cols, rows;
+      let sheetWidth, sheetHeight;
+
+      if (fmt === 'pecha') {
+        // A4 landscape, 3 pecha pages stacked vertically
+        pagesPerSheet = 3;
+        cols = 1; rows = 3;
+        sheetWidth = 841.89; sheetHeight = 595.28;
+      } else if (fmt === 'miniPecha') {
+        // A4 landscape, 2 cols × 3 rows = 6-up
+        pagesPerSheet = 6;
+        cols = 2; rows = 3;
+        sheetWidth = 841.89; sheetHeight = 595.28;
+      } else if (fmt === 'a4portrait') {
+        // A4 portrait, 6 pecha pages stacked vertically
+        pagesPerSheet = 6;
+        cols = 1; rows = 6;
+        sheetWidth = 595.28; sheetHeight = 841.89;
+      }
+
+      const cellW = sheetWidth / cols;
+      const cellH = sheetHeight / rows;
+
+      const totalSheets = Math.ceil(order.length / pagesPerSheet);
+
+      // Pre-embed all pages and detect their rotation
+      setStatus('Embedding pages…');
+      const embeddedPages = [];
+      const pageRotations = [];
+      for (let i = 0; i < workPdfForEmbed.getPageCount(); i++) {
+        const srcPage = workPdfForEmbed.getPage(i);
+        const ep = await outPdf.embedPage(srcPage);
+        embeddedPages.push(ep);
+        // Get the /Rotate value from the page dictionary (0, 90, 180, 270)
+        const rot = srcPage.getRotation().angle || 0;
+        pageRotations.push(rot);
+      }
+      setProgress(50);
+
+      for (let s = 0; s < totalSheets; s++) {
+        const sheet = outPdf.addPage([sheetWidth, sheetHeight]);
+
+        for (let slot = 0; slot < pagesPerSheet; slot++) {
+          const orderIdx = s * pagesPerSheet + slot;
+          if (orderIdx >= order.length) break;
+
+          const srcPageIdx = order[orderIdx] - 1; // 0-indexed
+          const ep = embeddedPages[srcPageIdx];
+          const rot = pageRotations[srcPageIdx];
+
+          // Calculate position in grid
+          const col = slot % cols;
+          const row = Math.floor(slot / cols);
+
+          // Cell origin (bottom-left in PDF coords)
+          const cellX = col * cellW;
+          const cellY = sheetHeight - (row + 1) * cellH;
+
+          // Get the VISUAL dimensions (after rotation)
+          const isRotated = (rot === 90 || rot === 270);
+          const visualW = isRotated ? ep.height : ep.width;
+          const visualH = isRotated ? ep.width : ep.height;
+
+          // Scale to fit cell based on visual dimensions
+          const scaleX = cellW / visualW;
+          const scaleY = cellH / visualH;
+          const scale = Math.min(scaleX, scaleY);
+
+          const drawW = visualW * scale;
+          const drawH = visualH * scale;
+
+          // Centre within cell
+          const centreX = cellX + (cellW - drawW) / 2;
+          const centreY = cellY + (cellH - drawH) / 2;
+
+          if (isRotated) {
+            // For 90° rotated pages: we need to rotate and reposition
+            // The embedded page is in its raw orientation (e.g. 215×1019 portrait)
+            // We need to draw it rotated so it appears landscape
+            const rawScaleX = drawW / visualW; // = drawW / ep.height
+            const rawScaleY = drawH / visualH; // = drawH / ep.width
+
+            if (rot === 90) {
+              // Rotate 90° CCW: translate, then rotate
+              sheet.drawPage(ep, {
+                x: centreX,
+                y: centreY + drawH,
+                xScale: drawH / ep.width,
+                yScale: drawW / ep.height,
+                rotate: degrees(-90)
+              });
+            } else { // 270
+              sheet.drawPage(ep, {
+                x: centreX + drawW,
+                y: centreY,
+                xScale: drawH / ep.width,
+                yScale: drawW / ep.height,
+                rotate: degrees(90)
+              });
+            }
+          } else if (rot === 180) {
+            sheet.drawPage(ep, {
+              x: centreX + drawW,
+              y: centreY + drawH,
+              xScale: drawW / ep.width,
+              yScale: drawH / ep.height,
+              rotate: degrees(180)
+            });
+          } else {
+            // No rotation needed
+            sheet.drawPage(ep, {
+              x: centreX,
+              y: centreY,
+              width: drawW,
+              height: drawH
+            });
+          }
+        }
+
+        setProgress(50 + Math.floor((s / totalSheets) * 40));
+      }
+
+      setProgress(90);
+      setStatus('Saving…');
+      await finishAndDownload(outPdf, fmt, paddedCount, blanksNeeded, order);
+    }
+
+  } catch (err) {
+    console.error(err);
+    setStatus('Error: ' + err.message, 'error');
+    btnGenerate.disabled = false;
+    progressBar.classList.remove('active');
+  }
+}
+
+async function finishAndDownload(outPdf, fmt, paddedCount, blanksNeeded, order) {
+  const pdfBytes = await outPdf.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+
+  const fmtLabels = {
+    pecha: 'A4 landscape pecha (3-up)',
+    miniPecha: 'Mini pecha (6-up)',
+    a4portrait: 'A4 portrait pecha (6-up)',
+    reorderOnly: 'Reordered (no imposition)'
+  };
+
+  const outPages = outPdf.getPageCount();
+  resultInfo.innerHTML = `<strong>${fmtLabels[fmt]}</strong><br>
+    ${uploadedPageCount} original → ${paddedCount} pages (${blanksNeeded} blank added) → ${outPages} sheet${outPages !== 1 ? 's' : ''}`;
+
+  btnDownload.href = url;
+  btnDownload.download = `${uploadedFileName}_pecha.pdf`;
+
+  psValue.textContent = order.join(', ');
+
+  resultArea.classList.add('visible');
+  setProgress(100);
+  setStatus('Done!', 'success');
+  btnGenerate.disabled = false;
+
+  setTimeout(() => progressBar.classList.remove('active'), 1500);
+}
+
+// ─── UI helpers ───
+function setProgress(pct) {
+  progressFill.style.width = pct + '%';
+}
+
+function setStatus(msg, type) {
+  statusText.textContent = msg;
+  statusText.className = 'status-text' + (type ? ' ' + type : '');
+}
+
+psToggle.addEventListener('click', () => {
+  psValue.classList.toggle('visible');
+  psToggle.textContent = psValue.classList.contains('visible') ? 'Hide print string' : 'Show print string';
+});
+</script>
+
+</body>
+</html>
