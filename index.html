@@ -661,14 +661,28 @@ async function generate() {
       workPdf.addPage(p);
     }
 
-    // Add blank pages matching the size AND rotation of the first page
+    // Add blank pages matching the visible size of the first page
+    // Use CropBox if available (some pechas have large MediaBox but small CropBox)
     // IMPORTANT: draw invisible content so the page has a Contents stream
     // (pdf-lib's embedPage fails on pages with missing Contents)
     const firstPage = srcPdf.getPage(0);
-    const { width: srcW, height: srcH } = firstPage.getSize();
+    const mediaBox = firstPage.getMediaBox();
+    const cropBox = firstPage.getCropBox();
     const srcRotation = firstPage.getRotation().angle || 0;
+    
+    // Use CropBox dimensions if meaningfully different from MediaBox
+    const hasCrop = (
+      Math.abs(cropBox.x - mediaBox.x) > 1 ||
+      Math.abs(cropBox.y - mediaBox.y) > 1 ||
+      Math.abs(cropBox.width - mediaBox.width) > 1 ||
+      Math.abs(cropBox.height - mediaBox.height) > 1
+    );
+    
+    const blankW = hasCrop ? cropBox.width : mediaBox.width;
+    const blankH = hasCrop ? cropBox.height : mediaBox.height;
+    
     for (let i = 0; i < blanksNeeded; i++) {
-      const blankPage = workPdf.addPage([srcW, srcH]);
+      const blankPage = workPdf.addPage([blankW, blankH]);
       if (srcRotation) {
         blankPage.setRotation(degrees(srcRotation));
       }
@@ -740,13 +754,38 @@ async function generate() {
 
       const totalSheets = Math.ceil(order.length / pagesPerSheet);
 
-      // Pre-embed all pages and detect their rotation
+      // Pre-embed all pages, using CropBox clipping when available, and detect rotation
       setStatus('Embedding pages…');
       const embeddedPages = [];
       const pageRotations = [];
       for (let i = 0; i < workPdfForEmbed.getPageCount(); i++) {
         const srcPage = workPdfForEmbed.getPage(i);
-        const ep = await outPdf.embedPage(srcPage);
+        
+        // Check if page has a CropBox different from MediaBox
+        const mediaBox = srcPage.getMediaBox();
+        const cropBox = srcPage.getCropBox();
+        
+        // Determine if CropBox is meaningfully different from MediaBox
+        const hasCrop = (
+          Math.abs(cropBox.x - mediaBox.x) > 1 ||
+          Math.abs(cropBox.y - mediaBox.y) > 1 ||
+          Math.abs(cropBox.width - mediaBox.width) > 1 ||
+          Math.abs(cropBox.height - mediaBox.height) > 1
+        );
+        
+        let ep;
+        if (hasCrop) {
+          // Embed with CropBox clipping
+          ep = await outPdf.embedPage(srcPage, {
+            left: cropBox.x,
+            bottom: cropBox.y,
+            right: cropBox.x + cropBox.width,
+            top: cropBox.y + cropBox.height
+          });
+        } else {
+          ep = await outPdf.embedPage(srcPage);
+        }
+        
         embeddedPages.push(ep);
         // Get the /Rotate value from the page dictionary (0, 90, 180, 270)
         const rot = srcPage.getRotation().angle || 0;
